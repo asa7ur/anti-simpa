@@ -87,3 +87,49 @@ de un archivo, sigue dentro aunque luego lo añada al `.gitignore`.
 
 Para sacarlo: `git rm --cached archivo`. El `--cached` lo quita solo del staging; sin
 él, borra el archivo del disco. Se añade -f en caso de que el fichero ya ha tenido cambios tras añadirlo.
+
+### Git: deshacer un commit
+
+Si hago un commit con errores o simplemente quiero quitarlo, hay dos herramientas. Cuál
+uso depende de si ya he hecho push o no:
+
+- **`git reset`**: mueve la rama hacia atrás y el commit desaparece del historial. Solo
+  para commits que están en mi máquina.
+- **`git revert`**: crea un commit nuevo que deshace los cambios del otro. No borra nada
+  del historial. Para commits que ya están publicados.
+
+La regla: **el historial local se puede reescribir; el publicado no.** Si reescribo algo
+que otra persona ya ha descargado, su trabajo queda apoyado en commits que ya no existen.
+
+`reset` tiene tres modos, según lo que hace con los cambios del commit que quito:
+
+| Modo | Los cambios del commit |
+|---|---|
+| `--soft` | Se quedan en el staging |
+| `--mixed` (por defecto) | Se quedan en mis ficheros, fuera del staging |
+| `--hard` | Se borran: los ficheros quedan como en el commit al que vuelvo |
+
+Ojo con `--hard`: también borra cualquier cambio que tuviera sin confirmar, sin preguntar.
+Hacer `git status` antes.
+
+### Git: recuperar un commit borrado
+
+Si quito un commit por error con `reset`, se puede recuperar:
+
+- `git reflog` enseña todos los sitios por los que ha pasado mi `HEAD`, también los
+  commits que ya no están en ninguna rama.
+- `git cherry-pick <hash>` copia ese commit a la rama en la que estoy.
+
+Solo sirve para lo que llegó a estar en un commit. Los cambios que nunca confirmé y borré
+con `--hard` no se pueden recuperar.
+
+Me pasó: hice un commit de prueba con un cambio de `PLAN.md`, lo quité con `reset --hard`
+y perdí ese cambio. Lo recuperé con `reflog` y `cherry-pick`.
+
+### Git: cambiar el mensaje de un commit
+
+`git commit --amend -m "Nuevo mensaje"`. Solo vale para el último commit.
+
+No edita el commit: lo sustituye por uno nuevo con otro hash. Por eso es reescribir
+historial y solo se hace antes del push. También mete en el commit lo que haya en el
+staging, así que `git status` antes.
