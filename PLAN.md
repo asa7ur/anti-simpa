@@ -71,5 +71,9 @@ Regla: no se pasa a la siguiente fase hasta que la anterior funciona y tiene tes
 ## Hábitos
 
 - Git desde el primer día, commits pequeños con mensajes claros
+- Git Flow: `main` (producción) y `develop` (siguiente versión) protegidas, sin push directo.
+  Cada ticket en una rama `feature/` que sale de `develop` y vuelve con un pull request.
+  `release/` y `hotfix/` para publicar y para arreglos urgentes. Cada fusión a `main` lleva
+  un tag con versionado semántico
 - Cada tarea se define como un ticket (requisitos + criterios de aceptación) antes de programar
 - Diario de aprendizaje en `NOTES.md`: qué aprendí y qué errores me costaron
