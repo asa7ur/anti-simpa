@@ -133,3 +133,94 @@ y perdí ese cambio. Lo recuperé con `reflog` y `cherry-pick`.
 No edita el commit: lo sustituye por uno nuevo con otro hash. Por eso es reescribir
 historial y solo se hace antes del push. También mete en el commit lo que haya en el
 staging, así que `git status` antes.
+
+## 2026-10-18 — Diseño del modelo de datos
+
+### El modelo
+
+```
+app_user      (id PK, email NOT NULL UNIQUE, password_hash NOT NULL, name NOT NULL)
+
+expense_group (id PK, name NOT NULL, invite_code NOT NULL UNIQUE)
+
+member        (id PK, name NOT NULL,
+               user_id  FK → app_user      NULL permitido, ON DELETE SET NULL,
+               group_id FK → expense_group NOT NULL,       ON DELETE CASCADE,
+               UNIQUE (group_id, name), UNIQUE (group_id, user_id))
+
+expense       (id PK,
+               payer_id FK → member        NOT NULL,
+               group_id FK → expense_group NOT NULL, ON DELETE CASCADE,
+               amount numeric(7,2) NOT NULL CHECK (amount > 0),
+               expense_day date NOT NULL, description NOT NULL)
+
+share         (id PK,
+               member_id  FK → member  NOT NULL,
+               expense_id FK → expense NOT NULL, ON DELETE CASCADE,
+               amount numeric(7,2) NOT NULL CHECK (amount > 0),
+               UNIQUE (member_id, expense_id))
+```
+
+Todos los `id` son `bigint GENERATED ALWAYS AS IDENTITY`. Todas las FK son `bigint`.
+Los textos son `text`.
+
+Por qué es así:
+
+- `app_user` es solo la cuenta. `member` es alguien dentro de un grupo, con cuenta o sin
+  ella (invitado: `user_id` a `NULL`). Los gastos apuntan a `member`, no a `app_user`, para
+  que los invitados puedan pagar y deber.
+- El nombre vive en `member`, no en `app_user`, para que un invitado tenga nombre y para
+  que siga ahí si se borra la cuenta.
+- `share` es una fila por persona y gasto: "a este miembro le toca esta cantidad de este
+  gasto". Permite repartos no equitativos.
+
+### Conceptos
+
+- **Clave primaria con identity**: la identidad de la fila. La genera PostgreSQL al
+  insertar, con una secuencia (1, 2, 3...). Solo en la clave primaria.
+- **Clave foránea**: una referencia a una fila de otra tabla. Es un `bigint` normal que
+  decido yo al insertar ("este miembro va en el grupo 7"); PostgreSQL solo comprueba que
+  ese id exista. Lleva `_id` en el nombre porque guarda un id, no el objeto entero.
+- **La FK va en el lado del "muchos"**: un grupo tiene muchos miembros, así que
+  `group_id` va en `member`.
+- **Nombrar la FK por su papel**: `payer_id`, no `member_id`, porque dice qué hace ese
+  miembro en el gasto.
+- **Una FK puede ser nula**: sin `NOT NULL`, la referencia es opcional. Si tiene valor,
+  ese valor tiene que existir.
+- **`UNIQUE`** impide valores repetidos. Admite nulos, y en PostgreSQL dos `NULL` no
+  cuentan como iguales. Puede abarcar varias columnas: entonces lo que no se repite es la
+  combinación.
+- **`numeric(precisión, escala)`**: precisión = dígitos en total, escala = cuántos van
+  tras la coma. `numeric(7,2)` llega a 99.999,99. Si solo pongo un número, la escala es 0.
+- **`CHECK`** comprueba una condición sobre la fila, por ejemplo que el importe sea
+  positivo. Solo ve una fila a la vez.
+- **`ON DELETE`** dice qué pasa con las filas que apuntan a otra cuando esa otra se borra:
+  - `CASCADE`: se borran también.
+  - `SET NULL`: la FK se pone a `NULL`.
+  - `RESTRICT`: se impide el borrado, comprobando en el momento.
+  - Sin nada (`NO ACTION`): se impide el borrado, pero comprobando al final de la
+    operación. Lo uso en las FK a `member`: con `RESTRICT`, borrar un grupo podría fallar
+    en mitad de la cascada.
+- **No guardar lo que se puede calcular**: quité `member_count` porque se cuenta con una
+  consulta. Guardarlo aparte crea dos verdades que pueden no coincidir.
+
+### Lo que la base de datos no comprueba
+
+Estas reglas implican varias filas o varias tablas, así que irán en el código Java:
+
+- La suma de los `share` de un gasto es igual al `amount` del gasto.
+- El `payer_id` de un gasto es un miembro del mismo grupo que el gasto.
+
+### Errores que me costaron
+
+- **Identity en las claves foráneas.** Lo puse en todas las FK. Cada fila nueva habría
+  recibido el siguiente número de la secuencia, sin importar a qué grupo o miembro quería
+  apuntar.
+- **`UNIQUE` sobre una sola columna.** `name UNIQUE` en `member` hacía el nombre único en
+  toda la app; `member_id UNIQUE` en `share` dejaba a cada miembro participar en un solo
+  gasto. Lo que quería era único dentro de algo: `UNIQUE (group_id, name)`.
+- **FK en la dirección equivocada.** Puse `expense_id` en `member`, que habría
+  significado un gasto por miembro.
+- **`numeric(2)`**: creía que eran dos decimales y era "dos dígitos en total", máximo 99.
+- **Palabras reservadas.** `user` y `group` no se pueden usar como nombre de tabla en
+  PostgreSQL.

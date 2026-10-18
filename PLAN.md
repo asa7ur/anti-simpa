@@ -17,6 +17,17 @@ no solo tener la app terminada.
 > Importante: en el servidor de Hetzner también está desplegado mi TFG.
 > Todo debe ir en contenedores aislados para no romperlo.
 
+## Decisiones de producto
+
+- Se entra a un grupo con un enlace. Se puede entrar como invitado, solo con un nombre,
+  o con cuenta registrada, que además permite ver "mis grupos".
+- No hay admins: todos los miembros de un grupo tienen los mismos permisos.
+- Nadie borra un grupo. Se borra solo cuando sale el último miembro.
+- Solo se puede salir de un grupo con el balance a cero.
+- Si un usuario borra su cuenta, sigue en sus grupos como invitado.
+- Las deudas se calculan en neto por persona. Los pagos son de una persona a otra,
+  no se marcan gastos como pagados.
+
 ## Fases
 
 Regla: no se pasa a la siguiente fase hasta que la anterior funciona y tiene tests.
@@ -35,7 +46,8 @@ Regla: no se pasa a la siguiente fase hasta que la anterior funciona y tiene tes
 
 ### Fase 3: Seguridad
 - [ ] Spring Security: registro y login con JWT
-- [ ] Autorización: solo los miembros ven un grupo, solo el admin lo borra
+- [ ] Autorización: solo los miembros de un grupo pueden verlo y modificarlo
+- [ ] Acceso de invitados con el enlace del grupo, sin registrarse
 - [ ] Entender la cadena de filtros de Spring Security
 
 ### Fase 4: Lógica de negocio
